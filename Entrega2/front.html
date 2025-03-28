@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de Fake News</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h2>Detector de Fake News</h2>
+
+    <h3>Ingresar noticia manualmente</h3>
+    <label for="titulo">Título:</label>
+    <input type="text" id="titulo" required> <br><br>
+
+    <label for="descripcion">Descripción:</label>
+    <textarea id="descripcion" required></textarea> <br><br>
+
+    <label for="fecha">Fecha:</label>
+    <input type="date" id="fecha" required> <br><br>
+
+    <button onclick="enviarDatos()">Predecir</button>
+
+    <h3>O subir un archivo CSV</h3>
+    <input type="file" id="csvFile" accept=".csv">
+    <button onclick="procesarCSV()">Subir CSV</button>
+
+    <h3>Resultados:</h3>
+    <table id="tablaResultados">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th>Fecha</th>
+                <th>Predicción</th>
+                <th>Probabilidad</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+
+    <script>
+        async function enviarDatos() {
+            const titulo = document.getElementById("titulo").value.trim();
+            const descripcion = document.getElementById("descripcion").value.trim();
+            const fechaInput = document.getElementById("fecha").value.trim();
+
+            if (!titulo || !descripcion || !fechaInput) {
+                alert("Por favor, completa todos los campos.");
+                return;
+            }
+
+            const fecha = formatearFechaEnvio(fechaInput);
+            const datos = [{ titulo, descripcion, fecha }];
+
+            await enviarAlServidor(datos);
+        }
+
+        async function procesarCSV() {
+            const fileInput = document.getElementById("csvFile");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Por favor, selecciona un archivo CSV.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                const contenido = e.target.result;
+                const filas = contenido.split("\n").map(linea => linea.trim()).filter(linea => linea);
+                const datos = [];
+
+                filas.slice(1).forEach(linea => {
+                    const columnas = linea.split(";");
+
+                    if (columnas.length >= 4) {
+                        const titulo = columnas[1].trim();
+                        const descripcion = columnas[2].trim();
+                        const fechaStr = columnas[3].trim();
+                        const fecha = convertirFechaCSV(fechaStr); // Convertimos DD/MM/AAAA a AAAAMMDD
+
+                        if (titulo && descripcion && fecha) {
+                            datos.push({ titulo, descripcion, fecha });
+                        }
+                    }
+                });
+
+                if (datos.length > 0) {
+                    await enviarAlServidor(datos);
+                } else {
+                    alert("El archivo CSV no tiene datos válidos.");
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        async function enviarAlServidor(datos) {
+            try {
+                const respuesta = await fetch("http://127.0.0.1:8000/predecir/", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(datos)
+                });
+
+                const resultadoJSON = await respuesta.json();
+                mostrarResultados(resultadoJSON);
+            } catch (error) {
+                console.error("Error en la solicitud:", error);
+                alert("Hubo un problema al enviar los datos.");
+            }
+        }
+
+        function mostrarResultados(datos) {
+            const tbody = document.querySelector("#tablaResultados tbody");
+            tbody.innerHTML = "";
+
+            datos.forEach(item => {
+                const fila = document.createElement("tr");
+
+                fila.innerHTML = `
+                    <td>${item.titulo}</td>
+                    <td>${item.descripcion}</td>
+                    <td>${convertirFechaMostrar(item.fecha)}</td>
+                    <td>${item.prediccion === 1 ? "Verdadera" : "Falsa"}</td>
+                    <td>${(item.probabilidad * 100).toFixed(2)}%</td>
+                `;
+
+                tbody.appendChild(fila);
+            });
+        }
+
+        function convertirFechaCSV(fechaStr) {
+            // Convierte de DD/MM/AAAA a AAAAMMDD
+            const partes = fechaStr.split("/");
+            if (partes.length !== 3) return null;
+            return partes[2] + partes[1] + partes[0];
+        }
+
+        function convertirFechaMostrar(fechaNum) {
+            // Convierte de AAAAMMDD a DD/MM/AAAA para mostrar
+            if (!fechaNum) return "Fecha inválida";
+
+            const fechaStr = fechaNum.toString();
+            if (fechaStr.length !== 8) return "Fecha inválida";
+
+            return `${fechaStr.substring(6, 8)}/${fechaStr.substring(4, 6)}/${fechaStr.substring(0, 4)}`;
+        }
+
+        function formatearFechaEnvio(fechaInput) {
+            // Convierte de YYYY-MM-DD (input HTML) a AAAAMMDD
+            return fechaInput.replace(/-/g, "");
+        }
+    </script>
+</body>
+</html>

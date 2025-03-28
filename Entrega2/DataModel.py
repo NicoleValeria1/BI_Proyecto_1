@@ -1,16 +1,11 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class DataModel(BaseModel):
+    id: Optional[int] = None  # Se genera en el backend
+    titulo: str
+    descripcion: str
+    fecha: str  # Formato "YYYY-MM-DD"
 
-    # Estas varibles permiten que la librería pydantic haga el parseo entre el Json recibido y el modelo declarado.
-    ID:int
-    Titulo: str
-    Descripcion: str
-    Fecha:int
-   
-   
-
-    #Esta función retorna los nombres de las columnas correspondientes con el modelo exportado en joblib.
-    def columns(self):
-        return ["ID","Titulo", "Descripcion", "Fecha"]
-
+    def get_columns(self):
+        return ["id", "titulo", "descripcion", "fecha"]
